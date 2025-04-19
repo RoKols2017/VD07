@@ -3,7 +3,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, current_user, login_required
 from app.models import User
 from app import db, bcrypt
-from app.forms import RegistrationForm, LoginForm
+from app.forms import RegistrationForm, LoginForm, EditProfileForm
 
 main = Blueprint('main', __name__)
 
@@ -49,3 +49,30 @@ def logout():
 @login_required
 def account():
     return render_template('account.html')
+
+@main.route('/edit_profile', methods=['GET', 'POST'])
+@login_required
+def edit_profile():
+    form = EditProfileForm(
+        original_username=current_user.username,
+        original_email=current_user.email
+    )
+
+    if form.validate_on_submit():
+        if not bcrypt.check_password_hash(current_user.password, form.current_password.data):
+            flash('Неверный текущий пароль', 'danger')
+        else:
+            current_user.username = form.username.data
+            current_user.email = form.email.data
+            if form.new_password.data:
+                hashed_pw = bcrypt.generate_password_hash(form.new_password.data).decode('utf-8')
+                current_user.password = hashed_pw
+            db.session.commit()
+            flash('Профиль обновлён!', 'success')
+            return redirect(url_for('main.account'))
+
+    elif request.method == 'GET':
+        form.username.data = current_user.username
+        form.email.data = current_user.email
+
+    return render_template('edit_profile.html', form=form, title='Редактирование профиля')
